@@ -15,27 +15,29 @@ void Data::preload_math_vars() {
 }*/
 
 double Data::get_cos_val(double val) {
-	double buf = val < 0 ? -val : val;
+	double buf = val; //< 0 ? -val : val;
 	//double d = cos_vals[(long)(buf*10000)];
 	double d = cos(buf * M_PI / 180);
 	return d;
 }
 
 double Data::get_sin_val(double val) {
-	double buf = val < 0 ? -val : val;
+	double buf = val; //< 0 ? -val : val;
 	//double d = sin_vals[(long)(buf*10000)];
 	double d = sin(buf * M_PI / 180);
 	return d;
 }
 
 double Data::get_tan_val(double val) {
-	double buf = val < 0 ? -val : val;
-	//double d = tan_vals[(long)(buf*10000)];
-	double d = tan(buf * M_PI / 180);
-	if (buf * M_PI / 180 == 90) {d = tan(90.1 * M_PI / 180);}
-	else if (buf * M_PI / 180 == 270) {d = tan(270.1 * M_PI / 180);}
-	if (val < 0) return -d;
-	else return d;
+	double d;
+	if (val == 0) {d = tan(0.1 * M_PI / 180);}
+	else if (val == 90) {d = tan(90.1 * M_PI / 180);}
+	else if (val == 180) {d = tan(180.1 * M_PI / 180);}
+	else if (val == 270) {d = tan(270.1 * M_PI / 180);}
+	else  d = tan(val * M_PI / 180);
+	//if (val < 0) return -d;
+	//else return d;
+	return d;
 }
 
 
@@ -54,8 +56,8 @@ Player::Player() {
 	key_s = false;
 	key_d = false;
 	angle = 270;
-	pos_x = Field::width * 4 + Field::width/2;
-	pos_y = Field::height * 4 + Field::height/2;
+	pos_x = Field::width * 1 + Field::width/2;
+	pos_y = Field::height * 1 + Field::height/2;
 	last_direction = 0;
 }
 
@@ -231,15 +233,10 @@ void Map::load_map(SDL_Renderer* renderer, string map_path) {
 			temp = pixel << 16;
 			blue = temp >> 24;
 			
-			if (green == 0) {
-				map[x][y].floor_color_values = &floor_textures[0];
-				map[x][y].wall_texture = wall_textures[0];
-			} else if (green == 1) {
-				map[x][y].floor_color_values = &floor_textures[1];
-				map[x][y].wall_texture = wall_textures[1];
-			}
+			map[x][y].floor_color_values = &floor_textures[green];
+			map[x][y].wall_texture = wall_textures[green];
 			
-			map[x][y].size = blue;
+			map[x][y].size = blue * 3;
 			
 			
 			
@@ -269,11 +266,13 @@ void Map::load_map(SDL_Renderer* renderer, string map_path) {
 
 
 /* CLASS DEBUGGER */
+int Debugger::current_x_pane_debug = 0;
 int Debugger::fps_count = 0;
 long Debugger::time_stamp = 0;
 long Debugger::time_stamp_old = 0;
 long Debugger::ms_per_frame = 50;
 long Debugger::current_frame = 0;
+bool Debugger::do_draw = true;
 TTF_Font* Debugger::font = NULL;
 void Debugger::draw_info(SDL_Renderer* renderer, int fps_value, int ms_per_frame_value, int delay_value) {
 	SDL_Color txt_color = {255, 0, 0};
@@ -322,10 +321,33 @@ void Debugger::draw_info(SDL_Renderer* renderer, int fps_value, int ms_per_frame
 	SDL_FreeSurface(delay_frame);
 }
 
+void Debugger::draw_debug_raster(SDL_Renderer* renderer, Player& p) {
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+	for (int i = 0; i < 6; i++) {
+		for (int n = 0; n < 6; n++) {
+			
+			SDL_RenderDrawLine(renderer, i * Field::width, n * Field::width, n * Field::width + Field::width, n * Field::width);
+			SDL_RenderDrawLine(renderer, n * Field::width, i * Field::width, n * Field::width, i * Field::width + Field::width);
+		}
+	}
+
+	SDL_Rect r;
+	r.x = p.pos_x;
+	r.y = p.pos_y;
+	r.w = 8;
+	r.h = 8;
+	SDL_SetRenderDrawColor(renderer, 0, 255, 0, 0);
+	SDL_RenderFillRect(renderer, &r);
+
+
+}
+
 
 /* CLASS TEXTURES */
 Textures::Textures(SDL_Renderer* renderer) {
-	
+	floor_surface = SDL_CreateRGBSurface(0, Data::render_size_x, Data::render_size_y, 32, 0, 0, 0, 0);
+	SDL_SetColorKey(floor_surface, SDL_TRUE, 0);
+	floor_texture = SDL_CreateTextureFromSurface(renderer, floor_surface);
 	
 }
 /*

@@ -17,6 +17,7 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer);
 void handle_input (SDL_Event& e, Player& p);
 void draw_sky(SDL_Renderer* renderer, Player& p, SDL_Texture* t);
 
+//todo: nach bestimmter distance aufhören intersections zu berechnen
 
 int main(int argc, char** argv) {
 	
@@ -64,40 +65,6 @@ int main(int argc, char** argv) {
 	Map m;
 	m.load_map_textures(renderer);
 	m.load_map(renderer, "res/maps/map.bmp");
-	/*
-	for (int i = 0; i < m.field_num_x; i++) {
-		m.map[i][0].size = 128;
-		m.map[0][i].size = 128;
-		
-		m.map[Map::field_num_x - 1][i].size = 128;
-		m.map[i][Map::field_num_x - 1].size = 128;
-		
-		
-		for (int n = 0; n < m.field_num_y; n++) {
-			
-			
-			m.map[i][n].wall_texture = sl.forest_wall;
-			m.map[i][n].floor_color_values = &sl.forest_floor_texdata.color_values;
-		}
-		
-	
-	}
-	
-	
-	m.map[10][10].size = 25;
-	m.map[11][11].size = 25;
-	
-	m.map[13][10].size = 50;
-	
-	m.map[2][2].size = 10;
-	m.map[2][3].size = 20;
-	m.map[2][4].size = 30;
-	m.map[2][5].size = 40;
-	m.map[2][6].size = 50;
-	m.map[2][7].size = 50;
-	m.map[2][8].size = 50;
-	m.map[2][9].size = 50;
-	*/
 	
 	
 	SDL_ShowCursor(SDL_FALSE);
@@ -111,6 +78,8 @@ int main(int argc, char** argv) {
 		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 		SDL_RenderClear(renderer);
 		draw_sky(renderer, p, sl.sky);
+		
+		//Debugger::draw_debug_raster(renderer, p);
 		
 		sl.determine_current_weapon(renderer, p);
 		cast_rays(p, m, t, renderer);
@@ -127,7 +96,6 @@ int main(int argc, char** argv) {
 		}
 		
 		Debugger::draw_info(renderer, 1000/ms_per_frame, ms_per_frame, game_delay);
-		//Debugger::draw_absolute_pos(p, renderer);
 		
 		SDL_RenderSetScale(renderer, screen_multiplier, screen_multiplier);
 		SDL_RenderPresent(renderer);
@@ -250,6 +218,8 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			grid_stepsize_horizontal_x = Field::width / Data::get_tan_val(180 - current_angle);
 		}
 		
+		//grid_stepsize_horizontal_x = current_angle < 90 ? -grid_stepsize_horizontal_x : grid_stepsize_horizontal_x;
+		
 		//find first vertical grid
 		double first_grid_vertical_x;
 		double first_grid_vertical_y;
@@ -272,6 +242,19 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			grid_stepsize_vertical_x = Field::width;
 			grid_stepsize_vertical_y = Field::width * Data::get_tan_val(current_angle - 180);
 		}
+
+		
+		/*
+		//DEBUGGING
+		if (x == Debugger::current_x_pane_debug) {
+			cout << "angle: " << current_angle << endl;
+			cout << "horizontal x: " << grid_stepsize_horizontal_x << "\thorizontal y: " << grid_stepsize_horizontal_y << endl;
+		}
+		if (x == Debugger::current_x_pane_debug) {
+			cout << "vertical x: " << grid_stepsize_vertical_x << "\tvertical y: " << grid_stepsize_vertical_y << endl;
+			cout << "##" << endl;
+		}
+		*/
 		
 		
 		//calculate grid steps
@@ -280,43 +263,72 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 		double current_grid_vertical_x = first_grid_vertical_x;
 		double current_grid_vertical_y = first_grid_vertical_y;
 		int intersection_count = 0;
+		double last_horizontal_distance = 0;
+		double last_vertical_distance = 0;
 		
 		for (int i = 0; i < Player::view_depth; i++) {
 			
-			if (current_grid_horizontal_x >= 0 && current_grid_horizontal_x / Field::width < m.field_num_x && current_grid_horizontal_y >= 0 && current_grid_horizontal_y / Field::height < m.field_num_y) {
+			if (current_grid_horizontal_x >= 0 && current_grid_horizontal_x / Field::width < m.field_num_x && current_grid_horizontal_y >= 0 && current_grid_horizontal_y / Field::height < m.field_num_y && last_horizontal_distance < Player::view_distance) {
 				
 				SDL_Rect field_pos;
 				field_pos.x = current_grid_horizontal_x / Field::width;
 				field_pos.y = current_grid_horizontal_y / Field::width;
 				
 				
-				//double distance = ((double)(p.height)/ (i - Player::plane_y/2)) * p.dist_player_to_plane;
 				double distance = sqrt( (p.pos_x - current_grid_horizontal_x)*(p.pos_x - current_grid_horizontal_x) + (p.pos_y - current_grid_horizontal_y)*(p.pos_y - current_grid_horizontal_y) );
 				distance *= Data::get_cos_val(p.angle - current_angle);
 				distance = distance < 1 ? 1 : distance; //division by 0 forbidden
 				
-				intersection_t is = {field_pos, current_grid_horizontal_x, distance, &m.map[field_pos.x][field_pos.y], true};
+				intersection_t is = {field_pos, current_grid_horizontal_x, current_grid_horizontal_y, distance, &m.map[field_pos.x][field_pos.y], true};
 				
 				Raydata::intersections[intersection_count] = is;
 				intersection_count++;
+				last_horizontal_distance = distance;
+				
+				/*
+				//Debugging
+				if (x == Debugger::current_x_pane_debug) {
+					SDL_Rect r;
+					r.w = 2;
+					r.h = 2;
+					r.x = current_grid_horizontal_x;
+					r.y = current_grid_horizontal_y;
+					SDL_SetRenderDrawColor(renderer, 255, 0, 255, 0);
+					SDL_RenderFillRect(renderer, &r);
+				}
+				*/
 			}
 			
-			if (current_grid_vertical_x >= 0 && current_grid_vertical_x / Field::width < m.field_num_x && current_grid_vertical_y >= 0 && current_grid_vertical_y / Field::height < m.field_num_y) {
+			if (current_grid_vertical_x >= 0 && current_grid_vertical_x / Field::width < m.field_num_x && current_grid_vertical_y >= 0 && current_grid_vertical_y / Field::height < m.field_num_y && last_vertical_distance < Player::view_distance) {
 				
 				SDL_Rect field_pos;
 				field_pos.x = current_grid_vertical_x / Field::width;
 				field_pos.y = current_grid_vertical_y / Field::width;
 				
 				
-				//double distance = ((double)(p.height)/ (i - Player::plane_y/2)) * p.dist_player_to_plane;
+				
 				double distance = sqrt( (p.pos_x - current_grid_vertical_x)*(p.pos_x - current_grid_vertical_x) + (p.pos_y - current_grid_vertical_y)*(p.pos_y - current_grid_vertical_y) );
 				distance *= Data::get_cos_val(p.angle - current_angle);
 				distance = distance < 1 ? 1 : distance; //division by 0 forbidden
 				
-				intersection_t is = {field_pos, current_grid_vertical_y, distance, &m.map[field_pos.x][field_pos.y], false};
+				intersection_t is = {field_pos, current_grid_vertical_x, current_grid_vertical_y, distance, &m.map[field_pos.x][field_pos.y], false};
 				
 				Raydata::intersections[intersection_count] = is;
 				intersection_count++;
+				last_vertical_distance = distance;
+				
+				/*
+				//Debugging
+				if (x == Debugger::current_x_pane_debug) {
+					SDL_Rect r;
+					r.w = 2;
+					r.h = 2;
+					r.x = current_grid_vertical_x;
+					r.y = current_grid_vertical_y;
+					SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
+					SDL_RenderFillRect(renderer, &r);
+				}
+				*/
 			}
 			
 			current_grid_horizontal_x += grid_stepsize_horizontal_x;
@@ -330,18 +342,39 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 		std::sort( Raydata::intersections, Raydata::intersections + intersection_count );
 		//std::unique( Raydata::intersections, Raydata::intersections + intersection_count );
 		
+		//this prevents vertical wall stripes on corners on horizontal walls
+		if (grid_stepsize_horizontal_y < 0 && current_angle < 180) {
+			for (int i = 0; i < intersection_count; i++) {
+				if (i+1 < intersection_count) {
+					if (!Raydata::intersections[i].horizontal_wall && Raydata::intersections[i+1].horizontal_wall && Raydata::intersections[i].field == Raydata::intersections[i+1].field) {
+						double dist_weight = Raydata::intersections[i].distance / 100;
+						double dist_dif = Raydata::intersections[i+1].distance - Raydata::intersections[i].distance;
+						if (dist_dif < dist_weight) Raydata::intersections[i].horizontal_wall = true;
+					}
+				}
+			}
+		}
 		
-		
+		//intersection_t* last_intersection = Raydata::intersections;
+		//Field* last_field = Raydata::intersections[0].field;
+		//double last_intersection_distance = 0;
 		int last_field_height = 0;//Raydata::intersections[0].field->size;
-		//int last_y_wallpos = Data::render_size_y;
 		int last_y_floorpos = Data::render_size_y;
 		vector<Uint32>* last_floor_colors = Raydata::intersections[0].field->floor_color_values;
 		for (int i = 0; i < intersection_count; i++) {
+		
+			/*
+			//Debugging
+			if (x == Debugger::Debugger::current_x_pane_debug) {
+				cout << "int nr: " << i << "\tis hori: " << Raydata::intersections[i].horizontal_wall << "\tdistance: " << Raydata::intersections[i].distance << endl;
+			}
+			*/
 			
 			//floor y
 			SDL_Rect r_floor_dest;
 			double last_field_plane_height = (double)last_field_height/Raydata::intersections[i].distance * p.dist_player_to_plane + 1;
 			double last_field_rear_edge_y_pos = (double)p.height / (Raydata::intersections[i].distance / p.dist_player_to_plane) + p.plane_y/2 - last_field_plane_height;
+			
 			r_floor_dest.y = last_field_rear_edge_y_pos;
 			r_floor_dest.w = 1;
 			r_floor_dest.h = 1;
@@ -411,13 +444,17 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 					r_wall_texture.w = 1;
 					r_wall_texture.h = Field::height; //hier texture eigene height angeben
 					r_wall_texture.y = 0;
-					r_wall_texture.x = (int)Raydata::intersections[i].x_pos % Field::width;
+					if (Raydata::intersections[i].horizontal_wall)
+						r_wall_texture.x = (int)Raydata::intersections[i].x_pos % Field::width;
+					else
+						r_wall_texture.x = (int)Raydata::intersections[i].y_pos % Field::width;
 					
 					
 					if (r_wall_dest.y + r_wall_dest.h > last_y_floorpos) {
 						double percentage = (double)(last_y_floorpos - r_wall_dest.y) / r_wall_dest.h;
 						r_wall_dest.h = last_y_floorpos - r_wall_dest.y;
 						r_wall_texture.h *= percentage;
+						if (r_wall_texture.h == 0) r_wall_texture.h = 5;
 					}
 					
 					if (r_wall_dest.y + r_wall_dest.h < last_y_floorpos) r_wall_dest.h = last_y_floorpos - r_wall_dest.y;
@@ -437,9 +474,10 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 						else SDL_SetTextureColorMod(wall_texture, 255, 255, 255);
 					}
 					
-					if (Raydata::intersections[i].distance < Player::view_distance) {
-						SDL_RenderCopy(renderer, Raydata::intersections[i].field->wall_texture, &r_wall_texture, &r_wall_dest);
-					}
+					//Debugging
+					//if (Debugger::do_draw)SDL_RenderCopy(renderer, Raydata::intersections[i].field->wall_texture, &r_wall_texture, &r_wall_dest);
+					SDL_RenderCopy(renderer, Raydata::intersections[i].field->wall_texture, &r_wall_texture, &r_wall_dest);
+					
 					last_y_floorpos = r_wall_dest.y;
 					
 				}
@@ -449,22 +487,31 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			
 			last_floor_colors = Raydata::intersections[i].field->floor_color_values;
 			last_field_height = Raydata::intersections[i].field->size;
-			
-			
+			//last_intersection_distance = Raydata::intersections[i].distance;
+			//last_field = Raydata::intersections[i].field;
+			//last_intersection = &Raydata::intersections[i];
+		
 		}
 		
+		
+		/*
+		//Debugging
+		if (x == Debugger::Debugger::current_x_pane_debug) {
+			if (Debugger::do_draw)SDL_RenderDrawLine(renderer, x, 0, x, Data::render_size_y);
+		}
+		*/
 		
 		current_angle += (double)Player::field_of_view/Player::plane_x;
 		current_angle = current_angle >= 360 ? current_angle - 360 : current_angle;
 	}
 	//cout << render_count << endl;
-	SDL_Surface *temp = SDL_CreateRGBSurface(0, Data::render_size_x, Data::render_size_y, 32, 0, 0, 0, 0);
-	memcpy(temp->pixels, floor_pixels, sizeof(floor_pixels));
-	SDL_SetColorKey(temp, SDL_TRUE, 0);
-	SDL_Texture *floor_texture = SDL_CreateTextureFromSurface(renderer, temp);
-	SDL_RenderCopy(renderer, floor_texture, NULL, NULL);
-	SDL_DestroyTexture(floor_texture);
-	SDL_FreeSurface(temp);
+	
+	memcpy(t.floor_surface->pixels, floor_pixels, sizeof(floor_pixels));
+	SDL_DestroyTexture(t.floor_texture);
+	t.floor_texture = SDL_CreateTextureFromSurface(renderer, t.floor_surface);
+	SDL_RenderCopy(renderer, t.floor_texture, NULL, NULL);
+	//Debugging
+	//if (Debugger::do_draw)SDL_RenderCopy(renderer, t.floor_texture, NULL, NULL);
 }
 
 void handle_input (SDL_Event& e, Player& p) {
@@ -505,6 +552,15 @@ void handle_input (SDL_Event& e, Player& p) {
 					break;
 				case SDLK_SPACE:
 					if (p.jumping == false) p.jumping = true;
+					break;
+				case SDLK_n:
+					Debugger::current_x_pane_debug--;
+					break; 
+				case SDLK_m:
+					Debugger::current_x_pane_debug++;
+					break;
+				case SDLK_p:
+					Debugger::do_draw = !Debugger::do_draw;
 					break;
 				case SDLK_ESCAPE:
 					cout << Debugger::ms_per_frame << " " << 1000/Debugger::ms_per_frame << endl;
@@ -579,7 +635,6 @@ void handle_input (SDL_Event& e, Player& p) {
 		
 	}
 }
-
 
 
 

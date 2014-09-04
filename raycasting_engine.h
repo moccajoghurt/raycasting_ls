@@ -3,7 +3,7 @@
 
 #include <sstream>
 #include <vector>
-#include <math.h>
+#include <cmath>
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <iostream>
@@ -44,7 +44,8 @@ public:
 typedef struct intersection_t {
 	
 	bool operator==(const intersection_t& rd) const {
-		return field_pos.x == rd.field_pos.x && field_pos.y == rd.field_pos.y;
+		//if (abs(distance - rd.distance) < 0.5) cout << "happened" << endl;
+		return x_pos == rd.x_pos && y_pos == rd.y_pos;
 	}
 	
 	bool operator<(const intersection_t& rd) const {
@@ -52,6 +53,7 @@ typedef struct intersection_t {
 	}
 	SDL_Rect field_pos;
 	double x_pos;
+	double y_pos;
 	double distance;
 	Field* field;
 	bool horizontal_wall;
@@ -86,8 +88,8 @@ public:
 	static const int plane_x = Data::render_size_x;
 	static int plane_y;
 	static const int field_of_view = 60;
-	static const int view_depth = 40;
-	static const int view_distance = 2600;
+	static const int view_depth = 100;
+	static const int view_distance = 3000;
 	
 	Player();
 	
@@ -117,7 +119,8 @@ public:
 
 class Debugger {
 public:
-
+	
+	static int current_x_pane_debug;
 	static int fps_count;
 	static long time_stamp;
 	static long time_stamp_old;
@@ -126,6 +129,9 @@ public:
 	static TTF_Font* font; 
 	static void draw_info(SDL_Renderer* renderer, int fps_value, int ms_per_frame_value, int delay_value);
 	
+	//actual debugging
+	static void draw_debug_raster(SDL_Renderer* renderer, Player& p);
+	static bool do_draw;
 };
 
 
@@ -150,7 +156,8 @@ typedef struct static_texture_data_t {
 
 class Textures {
 public:
-	
+	SDL_Surface* floor_surface;
+	SDL_Texture* floor_texture;
 	Textures(SDL_Renderer* r);
 	//static void load_texture(int x, int y, int w, int h, int tex_pos_x, SDL_Renderer* renderer, string path, vector<SDL_Texture*>& vec, unsigned int color_key);
 	static static_texture_data_t load_static_texture(int x, int y, int w, int h, int tex_pos_x, SDL_Renderer* renderer, SDL_Surface* s);
