@@ -29,8 +29,24 @@ public:
 };
 
 
+typedef struct sprite_t {
+	SDL_Rect* tex_rect;
+	int x_map_pos;
+	int y_map_pos;
+	SDL_Texture* tex;
+}sprite_t;
+
+typedef struct sprite_drawdata_t {
+	
+	sprite_t* sprite;
+	SDL_Rect pane_rec;
+	SDL_Rect tex_rec;
+	
+}sprite_drawdata_t;
+
 class Field {
 public:
+	vector<sprite_t> sprites;
 	vector<Uint32>* floor_color_values;
 	SDL_Texture* wall_texture;
 	int size;
@@ -60,6 +76,8 @@ typedef struct intersection_t {
 	
 }intersection_t;
 
+
+
 class Raydata {
 public:
 	static intersection_t intersections[];
@@ -71,6 +89,7 @@ class Map {
 public:
 	vector<SDL_Texture*> wall_textures;
 	vector<vector<Uint32> > floor_textures;
+	vector<sprite_t> sprite_textures;
 	
 	static int field_num_x;
 	static int field_num_y;

@@ -196,7 +196,23 @@ void Map::load_map_textures(SDL_Renderer* renderer) {
 		cout << "couldn't open walls directory" << endl;
 	}
 	
-	//todo: sprites
+	//sprites
+	if ((dir = opendir ("./res/sprites/")) != NULL) {
+		while ((ent = readdir (dir)) != NULL) {
+			if (*ent->d_name == '.' || *ent->d_name == 'u') continue;
+			SDL_Surface* sprite_src = SDL_LoadBMP( string(string("./res/sprites/") + string(ent->d_name)).c_str() );
+			SDL_SetColorKey(sprite_src, SDL_TRUE, 0xFFFF00);
+			SDL_Texture* sprite_tex = SDL_CreateTextureFromSurface(renderer, sprite_src);
+			SDL_Rect* rec = new SDL_Rect();
+			rec->w = sprite_src->w;
+			rec->h = sprite_src->h;
+			sprite_t s = {rec, 0, 0, sprite_tex};
+			sprite_textures.push_back(s);
+		}
+		closedir (dir);
+	} else {
+		cout << "couldn't open sprites directory" << endl;
+	}
 }
 
 void Map::load_map(SDL_Renderer* renderer, string map_path) {
@@ -220,7 +236,7 @@ void Map::load_map(SDL_Renderer* renderer, string map_path) {
 			
 			Uint32 pixel = map_texdata.color_values[pixel_count];
 			Uint32 temp;
-			Uint8 red, green, blue;
+			Uint8 red, green, blue, alpha;
 			
 			//red
 			red = pixel >> 24;
@@ -233,30 +249,21 @@ void Map::load_map(SDL_Renderer* renderer, string map_path) {
 			temp = pixel << 16;
 			blue = temp >> 24;
 			
+			//alpha
+			temp = pixel << 24;
+			alpha = temp >> 24;
+			
 			map[x][y].floor_color_values = &floor_textures[green];
 			map[x][y].wall_texture = wall_textures[green];
 			
 			map[x][y].size = blue * 3;
 			
 			
-			
-			/*
-			SDL_Surface* forest_wall_src = SDL_LoadBMP("res/walls/1.bmp");
-			SDL_Texture* forest_wall = SDL_CreateTextureFromSurface(renderer, forest_wall_src);
-			
-			SDL_Surface* forest_floor_src = SDL_LoadBMP("res/floors/1.bmp");
-			SDL_Texture* forest_floor = SDL_CreateTextureFromSurface(renderer, forest_floor_src);
-			
-			map[x][y].wall_texture = forest_wall;
-			
-			vector<Uint32>* floor_color_vals = new vector<Uint32>();
-			Textures::load_color_info(renderer, forest_floor_src, forest_floor, dummy, *floor_color_vals);
-			
-			map[x][y].floor_color_values = floor_color_vals;
-			if (x == field_num_x -1 || x == 0 || y == 0 || y == field_num_y -1) {
-				map[x][y].size = 128;
+			if (alpha != 0) {
+				sprite_t s = {sprite_textures[alpha].tex_rect, x*Field::width + Field::width/2, y*Field::height + Field::height/2, sprite_textures[alpha].tex};
+				map[x][y].sprites.push_back(s);
 			}
-			*/
+			
 			
 			pixel_count++;
 		}

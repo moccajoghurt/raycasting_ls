@@ -191,7 +191,7 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 	
 	Uint32 floor_pixels[Data::render_size_x * Data::render_size_y];
 	memset(floor_pixels, 0, Data::render_size_x * Data::render_size_y * sizeof(Uint32));
-	
+	vector<sprite_drawdata_t> sprites;
 	for (int x = 0; x < Player::plane_x; x++) {
 		
 		
@@ -340,7 +340,6 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 		
 		// operator < used by default, shortest distance chosen
 		std::sort( Raydata::intersections, Raydata::intersections + intersection_count );
-		//std::unique( Raydata::intersections, Raydata::intersections + intersection_count );
 		
 		//this prevents vertical wall stripes on corners on horizontal walls
 		if (grid_stepsize_horizontal_y < 0 && current_angle < 180) {
@@ -355,9 +354,6 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			}
 		}
 		
-		//intersection_t* last_intersection = Raydata::intersections;
-		//Field* last_field = Raydata::intersections[0].field;
-		//double last_intersection_distance = 0;
 		int last_field_height = 0;//Raydata::intersections[0].field->size;
 		int last_y_floorpos = Data::render_size_y;
 		vector<Uint32>* last_floor_colors = Raydata::intersections[0].field->floor_color_values;
@@ -425,17 +421,16 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 			
 			
 			
-			
+			SDL_Rect r_wall_dest;
 			if (Raydata::intersections[i].field->size > last_field_height) {
 				//wall y
-				SDL_Rect r_wall_dest;
 				double h_wall = (double)Raydata::intersections[i].field->size/Raydata::intersections[i].distance * p.dist_player_to_plane + 1;
 				double y_wall_pos = (double)p.height / ((double)Raydata::intersections[i].distance / p.dist_player_to_plane) + (double)p.plane_y/2 - h_wall;
+				SDL_Rect r_wall_dest;
 				r_wall_dest.y = y_wall_pos;
 				r_wall_dest.h = h_wall;//r_floor_dest.y - r_wall_dest.y;
 				r_wall_dest.w = 1;
 				r_wall_dest.x = x;
-				
 				
 				if (r_wall_dest.y < last_y_floorpos) {
 					
@@ -484,12 +479,122 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 				
 			}
 			
+			if (!Raydata::intersections[i].field->sprites.empty()) {
+				
+				for (vector<sprite_t>::iterator it = Raydata::intersections[i].field->sprites.begin(); it != Raydata::intersections[i].field->sprites.end(); it++) {
+					
+					
+					double distance_sprite = sqrt( (p.pos_x - it->x_map_pos)*(p.pos_x - it->x_map_pos) + (p.pos_y - it->y_map_pos)*(p.pos_y - it->y_map_pos) );
+					double h_sprite = (double)(it->tex_rect->h + Raydata::intersections[i].field->size)/distance_sprite * p.dist_player_to_plane + 1;
+					double y_sprite_pos = (double)p.height / (distance_sprite / p.dist_player_to_plane) + (double)p.plane_y/2 - h_sprite;
+					double h_pane = (double)(it->tex_rect->h)/distance_sprite * p.dist_player_to_plane + 1;
+					
+					
+					/*
+					double distance_sprite = sqrt( (p.pos_x - it->x_map_pos)*(p.pos_x - it->x_map_pos) + (p.pos_y - it->y_map_pos)*(p.pos_y - it->y_map_pos) );
+					double h_pane = (double)(it->tex_rect->h)/distance_sprite * p.dist_player_to_plane + 1;
+					double y_sprite_pos = (double)p.height / (distance_sprite / p.dist_player_to_plane) + (double)p.plane_y/2 - h_pane;
+					
+					cout << "p_x:" << p.pos_x << " p_y: " << p.pos_y << " s_x: " << it->x_map_pos << " s_y: " << it->y_map_pos << " distance: " <<distance_sprite << endl;
+					*/
+					
+					SDL_Rect pane_rec;
+					pane_rec.y = y_sprite_pos;
+					pane_rec.x = x;
+					pane_rec.w = 1;
+					pane_rec.h = h_pane;
+					
+					
+					//create lines
+					double sprite_leftside_x = it->x_map_pos + it->tex_rect->w/2 * cos((270 - current_angle) * M_PI / 180);
+					double sprite_leftside_y = it->y_map_pos + it->tex_rect->w/2 * sin((90 - current_angle) * M_PI / 180);
+					
+					double sprite_rightside_x = it->x_map_pos + it->tex_rect->w/2 * cos((90 - current_angle) * M_PI / 180);
+					double sprite_rightside_y = it->y_map_pos + it->tex_rect->w/2 * sin((270 - current_angle) * M_PI / 180);
+					
+					double intersection_x = p.pos_x - Field::width * cos((current_angle) * M_PI / 180);
+					double intersection_y = p.pos_y - Field::height * sin((current_angle) * M_PI / 180);
+					
+					
+					//find intersection
+					double ip_x, ip_y;
+					double a1, a2, b1, b2, c1, c2;
+					
+					a1 = sprite_rightside_y - sprite_leftside_y;
+					b1 = sprite_leftside_x - sprite_rightside_x;
+					c1 = a1 * sprite_leftside_x + b1 * sprite_leftside_y;
+					
+					a2 = intersection_y - p.pos_y;
+					b2 = p.pos_x - intersection_x;
+					c2 = a2 * p.pos_x + b2 * p.pos_y;
+					
+					double det = a1 * b2 - a2 * b1;
+					
+					if (det == 0) {
+						ip_x = Raydata::intersections[i].x_pos;
+						ip_y = Raydata::intersections[i].y_pos;
+					} else {
+						ip_x = (b2 * c1 - b1 * c2)/det;
+						ip_y = (a1 * c2 - a2 * c1)/det;
+					}
+					
+					double x_dif;
+					if (sprite_leftside_x > sprite_rightside_x) x_dif = sprite_leftside_x - sprite_rightside_x;
+					else x_dif = sprite_rightside_x - sprite_leftside_x;
+					
+					double y_dif;
+					if (sprite_leftside_y > sprite_rightside_y) y_dif = sprite_leftside_y - sprite_rightside_y;
+					else y_dif = sprite_rightside_y - sprite_leftside_y;
+					
+					x_dif = x_dif < 0 ? -x_dif : x_dif;
+					y_dif = y_dif < 0 ? -y_dif : y_dif;
+					
+					double sprite_dist = x_dif + y_dif;
+					
+					
+					double ip_x_dif;
+					if (sprite_leftside_x > ip_x) ip_x_dif = sprite_leftside_x - ip_x;
+					else ip_x_dif = ip_x - sprite_leftside_x;
+					
+					double ip_y_dif;
+					if (sprite_leftside_y > ip_y) ip_y_dif = sprite_leftside_y - ip_y;
+					else ip_y_dif = ip_y - sprite_leftside_y;
+					
+					ip_x_dif = ip_x_dif < 0 ? -ip_x_dif : ip_x_dif;
+					ip_y_dif = ip_y_dif < 0 ? -ip_y_dif : ip_y_dif;
+					
+					//cout << ip_x_dif + ip_y_dif << " " << x_dif + y_dif << endl;
+					
+					double percentage = (ip_x_dif + ip_y_dif) / (x_dif + y_dif);
+					
+					double x_tex = it->tex_rect->w * percentage;
+					
+					
+					
+					SDL_Rect tex_rec;
+					tex_rec.x = (int)x_tex;//offset;
+					tex_rec.y = 0;
+					tex_rec.w = 1;
+					tex_rec.h = it->tex_rect->h;
+					
+					
+					
+					if (pane_rec.y + pane_rec.h > last_y_floorpos) {
+						double percentage = (double)(last_y_floorpos - pane_rec.y) / pane_rec.h;
+						pane_rec.h = last_y_floorpos - pane_rec.y;
+						tex_rec.h *= percentage;
+						if (tex_rec.h == 0) tex_rec.h = 5;
+					}
+					
+					
+					
+					sprite_drawdata_t sd = {&(*it), pane_rec, tex_rec};
+					sprites.push_back(sd);
+				}
+			}
 			
 			last_floor_colors = Raydata::intersections[i].field->floor_color_values;
 			last_field_height = Raydata::intersections[i].field->size;
-			//last_intersection_distance = Raydata::intersections[i].distance;
-			//last_field = Raydata::intersections[i].field;
-			//last_intersection = &Raydata::intersections[i];
 		
 		}
 		
@@ -510,6 +615,14 @@ void cast_rays(Player& p, Map& m, Textures& t, SDL_Renderer* renderer) {
 	SDL_DestroyTexture(t.floor_texture);
 	t.floor_texture = SDL_CreateTextureFromSurface(renderer, t.floor_surface);
 	SDL_RenderCopy(renderer, t.floor_texture, NULL, NULL);
+	
+	std::reverse(sprites.begin(), sprites.end());
+	for (vector<sprite_drawdata_t>::iterator it = sprites.begin(); it != sprites.end(); it++) {
+		SDL_RenderCopy(renderer, it->sprite->tex, &it->tex_rec, &it->pane_rec);
+	}
+	
+	
+	
 	//Debugging
 	//if (Debugger::do_draw)SDL_RenderCopy(renderer, t.floor_texture, NULL, NULL);
 }
